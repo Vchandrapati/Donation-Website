@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Donation Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #10101a;
+      border-bottom: 1px solid #1e1e2e;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 700; }
+
+    .grand-total .amount {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #f7c26a;
+      display: block;
+      text-align: right;
+    }
+    .grand-total .label {
+      font-size: 0.68rem;
+      color: #4a4a5a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-align: right;
+      display: block;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #1e1e2e;
+      background: #10101a;
+      padding: 0 32px;
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #555;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 14px 20px;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #e8e8f0; border-bottom-color: #7c6af7; }
+
+    /* ── Page content ── */
+    .page { display: none; padding: 32px; max-width: 820px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: #1a1a22;
+      border: 1px solid #2a2a35;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #555;
+      margin-bottom: 16px;
+    }
+
+    /* ── Inputs ── */
+    input[type="text"], input[type="number"], select, textarea {
+      background: #0f0f13;
+      border: 1px solid #2a2a35;
+      border-radius: 8px;
+      color: #e8e8f0;
+      font-size: 0.9rem;
+      padding: 10px 14px;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #7c6af7; }
+    input::placeholder, textarea::placeholder { color: #333; }
+
+    textarea { font-family: inherit; resize: vertical; min-height: 120px; line-height: 1.6; }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      cursor: pointer;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      background: #7c6af7;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 700;
+      padding: 11px 20px;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #6a59e0; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: #2a2a35; color: #555; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: #1a1a22;
+      border: 1px solid #2a2a35;
+      color: #aaa;
+    }
+    .btn-ghost:hover { background: #22222e; color: #fff; }
+
+    .btn-danger {
+      background: transparent;
+      border: 1px solid #2a2a35;
+      color: #ef4444;
+      font-size: 0.78rem;
+      padding: 5px 10px;
+    }
+    .btn-danger:hover { background: #ef444415; border-color: #ef4444; }
+
+    .btn-sm { padding: 7px 14px; font-size: 0.8rem; }
+
+    /* ── Row layout ── */
+    .row { display: flex; gap: 10px; align-items: flex-start; }
+    .row input, .row select { flex: 1; }
+
+    /* ── Quick amounts ── */
+    .quick-amounts { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+    .quick-btn {
+      background: #181826;
+      border: 1px solid #2a2a35;
+      border-radius: 6px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 5px 12px;
+      transition: all 0.15s;
+    }
+    .quick-btn:hover { background: #7c6af7; color: #fff; border-color: #7c6af7; }
+
+    /* ── Amount input with $ ── */
+    .amount-wrap { position: relative; flex: 1; }
+    .amount-wrap .dollar {
+      position: absolute; left: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: #555; font-size: 0.9rem; pointer-events: none;
+    }
+    .amount-wrap input { padding-left: 26px; }
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    /* ── Team list ── */
+    .team-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .team-row {
+      background: #0f0f13;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      animation: slideIn 0.18s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .team-rank  { color: #333; font-size: 0.72rem; font-weight: 800; min-width: 20px; }
+    .team-name  { flex: 1; font-size: 0.9rem; }
+    .team-total { color: #34d399; font-size: 0.85rem; font-weight: 700; margin-right: 8px; }
+
+    .badge {
+      background: #7c6af720;
+      border-radius: 20px;
+      color: #7c6af7;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 10px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #333;
+      font-size: 0.875rem;
+    }
+    .empty-state span { display: block; font-size: 2rem; margin-bottom: 10px; }
+
+    /* ── Donation history ── */
+    .donation-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+
+    .donation-row {
+      background: #0f0f13;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      animation: slideIn 0.18s ease;
+    }
+
+    .d-team  { flex: 1; font-size: 0.875rem; font-weight: 500; }
+    .d-amount { color: #34d399; font-size: 0.9rem; font-weight: 700; }
+    .d-time  { color: #333; font-size: 0.75rem; min-width: 60px; text-align: right; }
+
+    /* ── SQL panel ── */
+    .sql-panel {
+      background: #0f0f13;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      color: #888;
+      padding: 16px;
+      white-space: pre;
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+    .kw { color: #7c6af7; }
+    .ty { color: #f59e0b; }
+    .vl { color: #34d399; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #1a1a22;
+      border: 1px solid #2a2a35;
+      border-left: 3px solid #34d399;
+      border-radius: 10px;
+      padding: 13px 20px;
+      font-size: 0.875rem;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 100;
+      max-width: 300px;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-left-color: #ef4444; }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Donation Manager</h1>
+  <div class="grand-total">
+    <span class="amount" id="grandTotal">$0</span>
+    <span class="label">Total raised</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('donations')">Donations</button>
+  <button class="tab"        onclick="switchTab('teams')">Teams</button>
+  <button class="tab"        onclick="switchTab('setup')">Setup</button>
+</div>
+
+<!-- ── DONATIONS TAB ────────────────────────────────────────────────────── -->
+<div class="page active" id="tab-donations">
+
+  <div class="card">
+    <div class="card-title">Record a donation</div>
+    <div class="row" style="margin-bottom:10px;">
+      <select id="donTeamSelect">
+        <option value="">Select team…</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="amount-wrap">
+        <span class="dollar">$</span>
+        <input type="number" id="donAmount" placeholder="0" min="1" step="1"
+               onkeydown="if(event.key==='Enter') submitDonation()" />
+      </div>
+      <button class="btn" id="donBtn" onclick="submitDonation()">Record</button>
+    </div>
+    <div class="quick-amounts">
+      <button class="quick-btn" onclick="setAmt(20)">$20</button>
+      <button class="quick-btn" onclick="setAmt(50)">$50</button>
+      <button class="quick-btn" onclick="setAmt(100)">$100</button>
+      <button class="quick-btn" onclick="setAmt(250)">$250</button>
+      <button class="quick-btn" onclick="setAmt(500)">$500</button>
+      <button class="quick-btn" onclick="setAmt(1000)">$1000</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <div class="card-title" style="margin:0;">Recent donations</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadDonations()">Refresh</button>
+    </div>
+    <div class="donation-list" id="donationList">
+      <div class="empty-state"><span>📋</span>No donations yet</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── TEAMS TAB ─────────────────────────────────────────────────────────── -->
+<div class="page" id="tab-teams">
+
+  <div class="card">
+    <div class="card-title">Add a team</div>
+    <div class="row">
+      <input type="text" id="newTeamName" placeholder="Team name"
+             onkeydown="if(event.key==='Enter') addTeam()" />
+      <button class="btn" onclick="addTeam()">Add</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bulk add — one per line</div>
+    <textarea id="bulkNames" placeholder="Team Alpha&#10;Team Bravo&#10;Team Charlie"></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" onclick="bulkAdd()">Add all</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('bulkNames').value=''">Clear</button>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:0.72rem; text-transform:uppercase; letter-spacing:1.5px; color:#555;">Teams</span>
+      <span class="badge" id="teamCount">0</span>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="loadTeams()">Load from Supabase</button>
+      <button class="btn btn-sm" id="pushBtn" onclick="pushTeams()">Push to Supabase</button>
+    </div>
+  </div>
+
+  <div class="team-list" id="teamList">
+    <div class="empty-state"><span>🏁</span>No teams yet</div>
+  </div>
+
+</div>
+
+<!-- ── SETUP TAB ─────────────────────────────────────────────────────────── -->
+<div class="page" id="tab-setup">
+
+  <div class="card">
+    <div class="card-title">Run this SQL in Supabase first</div>
+    <p style="font-size:0.825rem; color:#555; margin-bottom:12px;">
+      Supabase dashboard → SQL Editor → New query → paste and run
+    </p>
+    <div class="sql-panel"><span class="kw">create table</span> teams (
+  id     <span class="ty">serial primary key</span>,
+  name   <span class="ty">text unique not null</span>,
+  total  <span class="ty">numeric</span> <span class="kw">default</span> <span class="vl">0</span>
+);
+
+<span class="kw">create table</span> donations (
+  id         <span class="ty">serial primary key</span>,
+  team_id    <span class="ty">integer references</span> teams(id),
+  team_name  <span class="ty">text</span>,
+  amount     <span class="ty">numeric not null</span>,
+  created_at <span class="ty">timestamptz</span> <span class="kw">default</span> now()
+);
+
+<span class="kw">alter table</span> teams     <span class="kw">enable row level security</span>;
+<span class="kw">alter table</span> donations <span class="kw">enable row level security</span>;
+
+<span class="kw">create policy</span> <span class="vl">"public read teams"</span>      <span class="kw">on</span> teams     <span class="kw">for select using</span> (<span class="vl">true</span>);
+<span class="kw">create policy</span> <span class="vl">"public write teams"</span>     <span class="kw">on</span> teams     <span class="kw">for all    using</span> (<span class="vl">true</span>);
+<span class="kw">create policy</span> <span class="vl">"public read donations"</span>  <span class="kw">on</span> donations <span class="kw">for select using</span> (<span class="vl">true</span>);
+<span class="kw">create policy</span> <span class="vl">"public write donations"</span> <span class="kw">on</span> donations <span class="kw">for all    using</span> (<span class="vl">true</span>);</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copySQL()">Copy SQL</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Connected to</div>
+    <p style="font-size:0.875rem; color:#7c6af7; word-break:break-all;">__SUPABASE_URL__</p>
+  </div>
+
+</div>
+
+<!-- Thank-you overlay -->
+<div id="thankYou" style="
+  position:fixed; inset:0;
+  background:#07070dcc;
+  backdrop-filter:blur(10px);
+  z-index:300;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.3s;">
+  <div id="tyCard" style="
+    background:#10101a;
+    border:1px solid #2a2a3e;
+    border-radius:20px;
+    padding:48px 56px;
+    text-align:center;
+    max-width:380px; width:90%;
+    transform:scale(0.88);
+    transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);">
+    <div style="font-size:3rem; margin-bottom:14px;">🎉</div>
+    <h2 style="font-size:1.6rem; font-weight:800; margin-bottom:10px;">Thank you!</h2>
+    <div id="tyTeam"   style="color:#f7c26a; font-size:1.05rem; font-weight:700; margin-bottom:6px;"></div>
+    <div id="tyAmount" style="color:#34d399; font-size:2rem; font-weight:800; letter-spacing:-1px;"></div>
+    <div style="color:#4a4a5a; font-size:0.85rem; margin-top:10px;">Your generosity makes a difference.</div>
+    <button onclick="dismissTY()" style="
+      margin-top:24px;
+      background:#7c6af7; border:none; border-radius:10px;
+      color:#fff; cursor:pointer; font-size:0.9rem; font-weight:700;
+      padding:12px 36px; transition:background 0.2s;">Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<script>
+  const SB_URL = '__SUPABASE_URL__';
+  const SB_KEY = '__SUPABASE_KEY__';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let teams = JSON.parse(localStorage.getItem('dm_teams') || '[]');
+  function saveLocal() { localStorage.setItem('dm_teams', JSON.stringify(teams)); }
+
+  // ── Supabase helper ────────────────────────────────────────────────────────
+  async function sb(path, options = {}) {
+    const { headers: extra, ...rest } = options;
+    const h = new Headers();
+    h.set('apikey',        SB_KEY);
+    h.set('Authorization', `Bearer ${SB_KEY}`);
+    h.set('Content-Type',  'application/json');
+    h.set('Prefer',        'return=representation');
+    if (extra) Object.entries(extra).forEach(([k,v]) => h.set(k, v));
+    const res  = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: h, ...rest });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+    return data;
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t,i) => {
+      const pages = ['donations','teams','setup'];
+      t.classList.toggle('active', pages[i] === name);
+    });
+    document.querySelectorAll('.page').forEach(p => {
+      p.classList.toggle('active', p.id === `tab-${name}`);
+    });
+  }
+
+  // ── Grand total ────────────────────────────────────────────────────────────
+  function updateGrandTotal() {
+    const total = teams.reduce((s,t) => s + Number(t.total||0), 0);
+    document.getElementById('grandTotal').textContent = '$' + total.toLocaleString();
+  }
+
+  // ── Populate team select ───────────────────────────────────────────────────
+  function populateSelect() {
+    const sel = document.getElementById('donTeamSelect');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Select team…</option>';
+    [...teams].sort((a,b) => a.name.localeCompare(b.name)).forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.name;
+      sel.appendChild(o);
+    });
+    sel.value = cur;
+  }
+
+  // ── Submit donation ────────────────────────────────────────────────────────
+  async function submitDonation() {
+    const teamId = document.getElementById('donTeamSelect').value;
+    const amount = parseFloat(document.getElementById('donAmount').value);
+    if (!teamId) { toast('Select a team first', true); return; }
+    if (!amount || amount <= 0) { toast('Enter a valid amount', true); return; }
+
+    const btn = document.getElementById('donBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    const team = teams.find(t => t.id == teamId);
+    try {
+      await sb('donations', {
+        method: 'POST',
+        body: JSON.stringify({ team_id: Number(teamId), team_name: team.name, amount }),
+      });
+      const newTotal = Number(team.total || 0) + amount;
+      await sb(`teams?id=eq.${teamId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ total: newTotal }),
+      });
+      team.total = newTotal;
+      saveLocal(); updateGrandTotal(); populateSelect();
+      renderTeams(); loadDonations();
+      showTY(team.name, amount);
+      fireConfetti();
+      document.getElementById('donAmount').value = '';
+      document.getElementById('donTeamSelect').value = '';
+    } catch(e) { toast(e.message, true); }
+
+    btn.disabled = false; btn.textContent = 'Record';
+  }
+
+  function setAmt(v) { document.getElementById('donAmount').value = v; }
+
+  // ── Load donations history ─────────────────────────────────────────────────
+  async function loadDonations() {
+    try {
+      const data = await sb('donations?order=created_at.desc&limit=50');
+      const list = document.getElementById('donationList');
+      if (!data.length) {
+        list.innerHTML = '<div class="empty-state"><span></span>No donations yet</div>'; return;
+      }
+      list.innerHTML = data.map(d => `
+        <div class="donation-row">
+          <div class="d-team">${esc(d.team_name)}</div>
+          <div class="d-amount">$${Number(d.amount).toLocaleString()}</div>
+          <div class="d-time">${timeAgo(d.created_at)}</div>
+        </div>`).join('');
+    } catch(e) { toast(e.message, true); }
+  }
+
+  function timeAgo(iso) {
+    const mins = Math.floor((Date.now() - new Date(iso)) / 60000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.floor(mins/60)}h ago`;
+  }
+
+  // ── Teams ──────────────────────────────────────────────────────────────────
+  function addTeam() {
+    const input = document.getElementById('newTeamName');
+    const name  = input.value.trim();
+    if (!name) return;
+    if (teams.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+      toast('Already exists', true); return;
+    }
+    teams.push({ name, total: 0 });
+    saveLocal(); renderTeams();
+    input.value = ''; input.focus();
+  }
+
+  function bulkAdd() {
+    const lines = document.getElementById('bulkNames').value
+      .split('\n').map(l => l.trim()).filter(Boolean);
+    let added = 0;
+    lines.forEach(name => {
+      if (!teams.find(t => t.name.toLowerCase() === name.toLowerCase())) {
+        teams.push({ name, total: 0 }); added++;
+      }
+    });
+    saveLocal(); renderTeams();
+    document.getElementById('bulkNames').value = '';
+    toast(`Added ${added} team${added !== 1 ? 's' : ''}`);
+  }
+
+  function removeTeam(i) {
+    if (!confirm(`Remove "${teams[i].name}"?`)) return;
+    teams.splice(i, 1); saveLocal(); renderTeams();
+  }
+
+  async function loadTeams() {
+    try {
+      const data = await sb('teams?order=name.asc');
+      teams = data.map(r => ({ id: r.id, name: r.name, total: r.total || 0 }));
+      saveLocal(); renderTeams(); populateSelect(); updateGrandTotal();
+      toast(`Loaded ${teams.length} teams`);
+    } catch(e) { toast(e.message, true); }
+  }
+
+  async function pushTeams() {
+    if (!teams.length) { toast('No teams to push', true); return; }
+    const btn = document.getElementById('pushBtn');
+    btn.disabled = true; btn.textContent = 'Pushing…';
+    try {
+      await sb('teams?on_conflict=name', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(teams.map(t => ({ name: t.name, total: t.total || 0 }))),
+      });
+      await loadTeams();
+      toast(`${teams.length} teams pushed ✓`);
+    } catch(e) { toast(e.message, true); }
+    btn.disabled = false; btn.textContent = 'Push to Supabase';
+  }
+
+  function renderTeams() {
+    document.getElementById('teamCount').textContent = teams.length;
+    updateGrandTotal(); populateSelect();
+    const list = document.getElementById('teamList');
+    if (!teams.length) {
+      list.innerHTML = '<div class="empty-state"><span></span>No teams yet</div>'; return;
+    }
+    const sorted = [...teams].sort((a,b) => b.total - a.total);
+    list.innerHTML = sorted.map((t, i) => `
+      <div class="team-row">
+        <span class="team-rank">${i+1}</span>
+        <span class="team-name">${esc(t.name)}</span>
+        ${t.total ? `<span class="team-total">$${Number(t.total).toLocaleString()}</span>` : ''}
+        <button class="btn-danger" onclick="removeTeam(${teams.indexOf(t)})">Remove</button>
+      </div>`).join('');
+  }
+
+  // ── Thank-you ──────────────────────────────────────────────────────────────
+  let tyTimer;
+  function showTY(team, amount) {
+    document.getElementById('tyTeam').textContent   = team;
+    document.getElementById('tyAmount').textContent = '$' + Number(amount).toLocaleString();
+    const ov = document.getElementById('thankYou');
+    ov.style.opacity = '1'; ov.style.pointerEvents = 'all';
+    document.getElementById('tyCard').style.transform = 'scale(1)';
+    clearTimeout(tyTimer);
+    tyTimer = setTimeout(dismissTY, 5000);
+  }
+
+  function dismissTY() {
+    const ov = document.getElementById('thankYou');
+    ov.style.opacity = '0'; ov.style.pointerEvents = 'none';
+    document.getElementById('tyCard').style.transform = 'scale(0.88)';
+    clearTimeout(tyTimer);
+  }
+
+  // ── Confetti ───────────────────────────────────────────────────────────────
+  function fireConfetti() {
+    const c = ['#7c6af7','#f7c26a','#34d399','#f87171','#60a5fa'];
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: c });
+    setTimeout(() => confetti({ particleCount: 50, angle: 60,  spread: 55, origin: { x: 0, y: 0.6 }, colors: c }), 180);
+    setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1, y: 0.6 }, colors: c }), 320);
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg, err=false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (err ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.className = 'toast', 3200);
+  }
+
+  // ── SQL copy ───────────────────────────────────────────────────────────────
+  function copySQL() {
+    navigator.clipboard.writeText(`create table teams (
+  id     serial primary key,
+  name   text unique not null,
+  total  numeric default 0
+);
+create table donations (
+  id         serial primary key,
+  team_id    integer references teams(id),
+  team_name  text,
+  amount     numeric not null,
+  created_at timestamptz default now()
+);
+alter table teams     enable row level security;
+alter table donations enable row level security;
+create policy "public read teams"      on teams     for select using (true);
+create policy "public write teams"     on teams     for all    using (true);
+create policy "public read donations"  on donations for select using (true);
+create policy "public write donations" on donations for all    using (true);`).then(() => toast('SQL copied'));
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') dismissTY(); });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  renderTeams();
+  loadTeams().then(() => loadDonations()).catch(() => loadDonations());
+</script>
+</body>
+</html>

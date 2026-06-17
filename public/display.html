@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Donation Display</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #07070d;
+      --surface:#0e0e18;
+      --border: #1a1a28;
+      --accent: #7c6af7;
+      --gold:   #f7c26a;
+      --green:  #34d399;
+      --text:   #e8e8f0;
+      --muted:  #3a3a4a;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── Layout ── */
+    #app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 18px 40px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .header-left h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .header-left .subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .live-badge {
+      background: #34d39914;
+      border: 1px solid #34d39930;
+      border-radius: 20px;
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      justify-self: center;
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.3; transform: scale(0.7); }
+    }
+
+    .header-right {
+      text-align: right;
+    }
+
+    .header-right .total-amount {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--gold);
+      letter-spacing: -1px;
+      display: block;
+      line-height: 1;
+    }
+
+    .header-right .total-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-top: 3px;
+      display: block;
+    }
+
+    /* ── Body ── */
+    .body {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      min-height: 0;
+    }
+
+    /* ── Chart ── */
+    .chart-panel {
+      padding: 28px 36px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-right: 1px solid var(--border);
+    }
+
+    .panel-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+      margin-bottom: 18px;
+      flex-shrink: 0;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    /* ── Ranking ── */
+    .ranking-panel {
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 24px 20px;
+    }
+
+    .rank-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 6px;
+      border-radius: 8px;
+      transition: background 0.3s;
+    }
+
+    .rank-pos {
+      font-size: 0.75rem;
+      font-weight: 800;
+      min-width: 26px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .rank-pos.gold   { color: #f7c26a; font-size: 1rem; }
+    .rank-pos.silver { color: #b8b8cc; font-size: 1rem; }
+    .rank-pos.bronze { color: #c87941; font-size: 1rem; }
+
+    .rank-info { flex: 1; min-width: 0; }
+
+    .rank-name {
+      font-size: 0.825rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+
+    .rank-bar-bg {
+      background: var(--border);
+      border-radius: 3px;
+      height: 3px;
+    }
+
+    .rank-bar-fill {
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      border-radius: 3px;
+      height: 3px;
+      transition: width 0.7s cubic-bezier(0.34, 1.1, 0.64, 1);
+    }
+
+    .rank-amount {
+      font-size: 0.825rem;
+      font-weight: 700;
+      color: var(--green);
+      min-width: 60px;
+      text-align: right;
+    }
+
+    /* ── New donation flash ── */
+    #newDonationBanner {
+      position: fixed;
+      top: 24px; left: 50%; transform: translateX(-50%) translateY(-120px);
+      background: #10101a;
+      border: 1px solid #2a2a3e;
+      border-left: 4px solid var(--green);
+      border-radius: 12px;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 200;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      min-width: 280px;
+    }
+
+    #newDonationBanner.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .banner-emoji { font-size: 1.5rem; }
+    .banner-text .team  { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+    .banner-text .amount { font-size: 1.1rem; font-weight: 800; color: var(--green); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a3e; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="header-left">
+      <h1>Donation Leaderboard</h1>
+      <div class="subtitle">Live fundraising tracker</div>
+    </div>
+    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    <div class="header-right">
+      <span class="total-amount" id="grandTotal">$0</span>
+      <span class="total-label">Total raised</span>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <div class="chart-panel">
+      <div class="panel-label">Donations by team</div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <div class="ranking-panel">
+      <div class="panel-label" style="margin-bottom:16px;">Rankings</div>
+      <div class="rank-list" id="rankList"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- New donation banner -->
+<div id="newDonationBanner">
+  <div class="banner-emoji">🎉</div>
+  <div class="banner-text">
+    <div class="team"   id="bannerTeam"></div>
+    <div class="amount" id="bannerAmount"></div>
+  </div>
+</div>
+
+<script>
+  const SB_URL = '__SUPABASE_URL__';
+  const SB_KEY = '__SUPABASE_KEY__';
+
+  let teams = [];
+  let chart = null;
+  let lastDonationId = null;
+
+  const PALETTE = [
+    '#7c6af7','#f7c26a','#34d399','#f87171','#60a5fa',
+    '#a78bfa','#fbbf24','#4ade80','#fb923c','#38bdf8',
+    '#818cf8','#e879f9','#2dd4bf','#facc15','#94a3b8',
+    '#c084fc','#f472b6','#fb7185','#a3e635','#22d3ee',
+    '#f59e0b','#10b981','#3b82f6','#8b5cf6','#ec4899',
+  ];
+
+  // ── Supabase helper ────────────────────────────────────────────────────────
+  async function sb(path) {
+    const h = new Headers();
+    h.set('apikey',        SB_KEY);
+    h.set('Authorization', `Bearer ${SB_KEY}`);
+    h.set('Content-Type',  'application/json');
+    const res  = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: h });
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  // ── Sorted ─────────────────────────────────────────────────────────────────
+  function sorted() { return [...teams].sort((a,b) => b.total - a.total); }
+
+  // ── Grand total ────────────────────────────────────────────────────────────
+  function updateTotal() {
+    const t = teams.reduce((s,t) => s + Number(t.total||0), 0);
+    document.getElementById('grandTotal').textContent = '$' + t.toLocaleString();
+  }
+
+  // ── Chart ──────────────────────────────────────────────────────────────────
+  function buildChart() {
+    const s = sorted();
+    chart = new Chart(document.getElementById('chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: s.map(t => t.name),
+        datasets: [{
+          data: s.map(t => t.total),
+          backgroundColor: s.map((_,i) => PALETTE[i % PALETTE.length] + 'bb'),
+          borderColor:     s.map((_,i) => PALETTE[i % PALETTE.length]),
+          borderWidth: 1.5,
+          borderRadius: 8,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 800, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1a2a',
+            borderColor: '#2a2a3e',
+            borderWidth: 1,
+            titleColor: '#e8e8f0',
+            bodyColor: '#34d399',
+            padding: 10,
+            callbacks: { label: c => ` $${c.parsed.y.toLocaleString()}` },
+          },
+        },
+        scales: {
+          x: {
+            grid: { color: '#14142a' },
+            ticks: { color: '#3a3a4a', font: { size: 10 }, maxRotation: 40, minRotation: 30 },
+          },
+          y: {
+            grid: { color: '#14142a' },
+            ticks: { color: '#3a3a4a', font: { size: 11 }, callback: v => '$' + v.toLocaleString() },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+  }
+
+  function updateChart() {
+    if (!chart) return;
+    const s = sorted();
+    chart.data.labels = s.map(t => t.name);
+    chart.data.datasets[0].data = s.map(t => t.total);
+    chart.update('active');
+  }
+
+  // ── Ranking ────────────────────────────────────────────────────────────────
+  function medalIcon(i) {
+    const colors = [
+      { ring: '#f7c26a', fill: '#2a1f00', text: '#f7c26a' }, // gold
+      { ring: '#b8b8cc', fill: '#1a1a22', text: '#b8b8cc' }, // silver
+      { ring: '#c87941', fill: '#1f1000', text: '#c87941' }, // bronze
+    ];
+    if (i > 2) return `<span style="font-size:0.72rem;font-weight:800;color:#3a3a4a;">${i+1}</span>`;
+    const { ring, fill, text } = colors[i];
+    return `<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="11" cy="11" r="10" fill="${fill}" stroke="${ring}" stroke-width="1.5"/>
+      <text x="11" y="15" text-anchor="middle" font-size="10" font-weight="800" font-family="Segoe UI,system-ui,sans-serif" fill="${text}">${i+1}</text>
+    </svg>`;
+  }
+
+  function renderRanking() {
+    const s   = sorted();
+    const max = s[0]?.total || 1;
+    document.getElementById('rankList').innerHTML = s.map((t, i) => {
+      const pct = (t.total / max) * 100;
+      return `
+        <div class="rank-row">
+          <div class="rank-pos">${medalIcon(i)}</div>
+          <div class="rank-info">
+            <div class="rank-name">${esc(t.name)}</div>
+            <div class="rank-bar-bg">
+              <div class="rank-bar-fill" style="width:${pct}%"></div>
+            </div>
+          </div>
+          <div class="rank-amount">$${Number(t.total).toLocaleString()}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── New donation banner ────────────────────────────────────────────────────
+  let bannerTimer;
+  function showBanner(teamName, amount) {
+    document.getElementById('bannerTeam').textContent   = teamName;
+    document.getElementById('bannerAmount').textContent = '+$' + Number(amount).toLocaleString();
+    document.getElementById('newDonationBanner').classList.add('show');
+    fireConfetti();
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => {
+      document.getElementById('newDonationBanner').classList.remove('show');
+    }, 4000);
+  }
+
+  // ── Confetti ───────────────────────────────────────────────────────────────
+  function fireConfetti() {
+    const c = ['#7c6af7','#f7c26a','#34d399','#f87171','#60a5fa'];
+    confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 }, colors: c });
+    setTimeout(() => confetti({ particleCount: 60, angle: 60,  spread: 60, origin: { x: 0, y: 0.5 }, colors: c }), 200);
+    setTimeout(() => confetti({ particleCount: 60, angle: 120, spread: 60, origin: { x: 1, y: 0.5 }, colors: c }), 350);
+  }
+
+  // ── Real-time via WebSocket ────────────────────────────────────────────────
+  function subscribeRealtime() {
+    const wsUrl = SB_URL.replace('https://','wss://').replace('http://','ws://');
+    const ws = new WebSocket(`${wsUrl}/realtime/v1/websocket?apikey=${SB_KEY}&vsn=1.0.0`);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:donations',
+        event: 'phx_join',
+        payload: { config: {
+          broadcast: { self: false },
+          presence: { key: '' },
+          postgres_changes: [{ event: 'INSERT', schema: 'public', table: 'donations' }],
+        }},
+        ref: '1',
+      }));
+    };
+
+    ws.onmessage = async (msg) => {
+      const p = JSON.parse(msg.data);
+      const rec = p.payload?.data?.record;
+      if (rec && rec.id !== lastDonationId) {
+        lastDonationId = rec.id;
+        // Refresh teams
+        try {
+          teams = await sb('teams?order=total.desc');
+          updateChart(); renderRanking(); updateTotal();
+          showBanner(rec.team_name, rec.amount);
+        } catch(_) {}
+      }
+    };
+
+    setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: null }));
+      }
+    }, 25000);
+  }
+
+  // ── Fallback poll every 8s ─────────────────────────────────────────────────
+  function startPolling() {
+    setInterval(async () => {
+      try {
+        teams = await sb('teams?order=total.desc');
+        updateChart(); renderRanking(); updateTotal();
+      } catch(_) {}
+    }, 8000);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  async function init() {
+    teams = await sb('teams?order=total.desc');
+    buildChart();
+    renderRanking();
+    updateTotal();
+    subscribeRealtime();
+    startPolling();
+  }
+
+  init().catch(console.error);
+</script>
+</body>
+</html>
