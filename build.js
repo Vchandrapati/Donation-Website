@@ -7,11 +7,16 @@ require('dotenv').config();
 const fs   = require('fs');
 const path = require('path');
 
-const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_KEY;
+const SB_URL   = process.env.SUPABASE_URL;
+const SB_KEY   = process.env.SUPABASE_KEY;
+const SITE_PIN = process.env.SITE_PIN;
 
 if (!SB_URL || !SB_KEY) {
   console.error('❌  Missing SUPABASE_URL or SUPABASE_KEY — check your .env file or Vercel environment variables.');
+  process.exit(1);
+}
+if (!SITE_PIN) {
+  console.error('❌  Missing SITE_PIN — add it to your .env file or Vercel environment variables.');
   process.exit(1);
 }
 
@@ -29,7 +34,8 @@ files.forEach(file => {
   let content = fs.readFileSync(src, 'utf8');
   content = content
     .replaceAll('__SUPABASE_URL__', SB_URL)
-    .replaceAll('__SUPABASE_KEY__', SB_KEY);
+    .replaceAll('__SUPABASE_KEY__', SB_KEY)
+    .replaceAll('__SITE_PIN__',     SITE_PIN);
 
   fs.writeFileSync(dest, content, 'utf8');
   console.log(`✓  Built ${file}`);

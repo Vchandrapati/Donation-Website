@@ -153,9 +153,62 @@
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 4px; }
+
+    /* ── PIN Gate ── */
+    #pinGate {
+      position: fixed; inset: 0; z-index: 999;
+      background: #0f0f13;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.4s;
+    }
+    #pinGate.hide { opacity: 0; pointer-events: none; }
+    #pinBox {
+      background: #1a1a22;
+      border: 1px solid #2a2a35;
+      border-radius: 24px;
+      padding: 52px 60px;
+      text-align: center;
+      width: 340px;
+    }
+    #pinLock { font-size: 2.4rem; margin-bottom: 16px; }
+    #pinTitle { font-size: 1.35rem; font-weight: 800; color: #e8e8f0; margin-bottom: 6px; }
+    #pinSub { font-size: 0.82rem; color: #4a4a5a; margin-bottom: 28px; }
+    #pinInput {
+      background: #0f0f13; border: 1px solid #2a2a35; border-radius: 10px;
+      color: #e8e8f0; font-size: 1.1rem; letter-spacing: 4px;
+      padding: 12px 16px; text-align: center; width: 100%;
+      outline: none; transition: border-color 0.2s;
+    }
+    #pinInput:focus { border-color: #7c6af7; }
+    #pinErr { color: #ef4444; font-size: 0.8rem; height: 20px; margin: 8px 0; }
+    #pinBtn {
+      background: #7c6af7; border: none; border-radius: 10px;
+      color: #fff; cursor: pointer; font-size: 0.9rem; font-weight: 800;
+      letter-spacing: 1px; padding: 13px 0; width: 100%; margin-top: 4px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    #pinBtn:hover { background: #6a59e0; }
+    #pinBtn:active { transform: scale(0.98); }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60%  { transform: translateX(-8px); }
+      40%,80%  { transform: translateX(8px); }
+    }
+    #pinBox.wrong { animation: shake 0.35s ease; }
   </style>
 </head>
 <body>
+
+<div id="pinGate">
+  <div id="pinBox">
+    <div id="pinLock">🔒</div>
+    <div id="pinTitle">D20 Fundraiser Night</div>
+    <div id="pinSub">Enter the event PIN to continue</div>
+    <input id="pinInput" type="password" autocomplete="off" placeholder="PIN" maxlength="20">
+    <div id="pinErr"></div>
+    <button id="pinBtn">Unlock</button>
+  </div>
+</div>
 
 <header>
   <h1>Donation Manager</h1>
@@ -589,6 +642,42 @@ create policy "public write donations" on donations for all    using (true);`).t
 
   renderTeams();
   loadTeams().then(() => loadDonations()).catch(() => loadDonations());
+
+  // ── PIN Gate ───────────────────────────────────────────────────────────────
+  (function() {
+    const PIN  = '__SITE_PIN__';
+    const gate = document.getElementById('pinGate');
+    const input= document.getElementById('pinInput');
+    const err  = document.getElementById('pinErr');
+    const box  = document.getElementById('pinBox');
+
+    if (sessionStorage.getItem('d20_pin_ok') === '1') {
+      gate.style.display = 'none';
+      return;
+    }
+
+    function checkPin() {
+      if (input.value === PIN) {
+        sessionStorage.setItem('d20_pin_ok', '1');
+        gate.classList.add('hide');
+        setTimeout(() => gate.remove(), 400);
+      } else {
+        err.textContent = 'Incorrect PIN — try again';
+        input.value = '';
+        input.focus();
+        box.classList.remove('wrong');
+        void box.offsetWidth;
+        box.classList.add('wrong');
+      }
+    }
+
+    document.getElementById('pinBtn').addEventListener('click', checkPin);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') checkPin();
+      err.textContent = '';
+    });
+    input.focus();
+  })();
 </script>
 </body>
 </html>
