@@ -97,6 +97,10 @@
     .team-rank  { color: #333; font-size: 0.72rem; font-weight: 800; min-width: 20px; }
     .team-name  { flex: 1; font-size: 0.9rem; }
     .team-total { color: #34d399; font-size: 0.85rem; font-weight: 700; margin-right: 8px; }
+    .vis-toggle { display:flex; align-items:center; gap:5px; cursor:pointer; padding: 2px 0; }
+    .vis-toggle input { accent-color:#7c6af7; cursor:pointer; width:14px; height:14px; }
+    .vis-toggle span { font-size:0.7rem; color:#555; user-select:none; white-space:nowrap; }
+    .vis-toggle.on span { color:#7c6af7; }
 
     .badge { background: #7c6af720; border-radius: 20px; color: #7c6af7; font-size: 0.72rem; font-weight: 700; padding: 2px 10px; }
 
@@ -562,19 +566,35 @@
     btn.disabled = false; btn.textContent = 'Push to Supabase';
   }
 
+  function getVisibility() { return JSON.parse(localStorage.getItem('dm_team_visibility') || '{}'); }
+  function toggleVisible(name, show) {
+    const vis = getVisibility();
+    if (show) { delete vis[name]; } else { vis[name] = false; }
+    localStorage.setItem('dm_team_visibility', JSON.stringify(vis));
+    renderTeams();
+  }
+
   function renderTeams() {
     document.getElementById('teamCount').textContent = teams.length;
     updateGrandTotal(); populateSelect();
     const list = document.getElementById('teamList');
     if (!teams.length) { list.innerHTML = '<div class="empty-state">No teams yet</div>'; return; }
+    const vis = getVisibility();
     const s = [...teams].sort((a,b) => b.total - a.total);
-    list.innerHTML = s.map((t,i) => `
+    list.innerHTML = s.map((t,i) => {
+      const on = vis[t.name] !== false;
+      return `
       <div class="team-row">
         <span class="team-rank">${i+1}</span>
         <span class="team-name">${esc(t.name)}</span>
         ${t.total ? `<span class="team-total">$${Number(t.total).toLocaleString()}</span>` : ''}
+        <label class="vis-toggle ${on ? 'on' : ''}" title="${on ? 'Shown on graph & ranking' : 'Hidden from graph & ranking'}">
+          <input type="checkbox" ${on ? 'checked' : ''} data-name="${esc(t.name)}" onchange="toggleVisible(this.dataset.name, this.checked)">
+          <span>${on ? 'Show' : 'Hide'}</span>
+        </label>
         <button class="btn-danger" onclick="removeTeam(${teams.indexOf(t)})">Remove</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   // ── Thank-you ──────────────────────────────────────────────────────────────
