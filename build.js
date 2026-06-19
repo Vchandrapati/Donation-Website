@@ -20,9 +20,9 @@ if (!SITE_PIN) {
   process.exit(1);
 }
 
-// Embed Aeromove font as a base64 data URI
-const fontB64    = fs.readFileSync(path.join(__dirname, 'resources', 'aeromovedemo.regular.ttf')).toString('base64');
-const fontDataURI = `data:font/ttf;base64,${fontB64}`;
+// Embed Draco font (the display/brand font) as a base64 data URI
+const dracoB64     = fs.readFileSync(path.join(__dirname, 'resources', 'draco.regular.otf')).toString('base64');
+const dracoDataURI = `data:font/otf;base64,${dracoB64}`;
 
 // Parse Schedule.csv into a JSON array for injection
 const csvPath = path.join(__dirname, 'resources', 'Schedule.csv');
@@ -55,7 +55,7 @@ files.forEach(file => {
     .replaceAll('__SUPABASE_KEY__',  SB_KEY)
     .replaceAll('__SITE_PIN__',      SITE_PIN)
     .replaceAll('__SCHEDULE_DATA__', JSON.stringify(scheduleData))
-    .replaceAll('__AEROMOVE_FONT__', fontDataURI);
+    .replaceAll('__DRACO_FONT__',    dracoDataURI);
 
   fs.writeFileSync(dest, content, 'utf8');
   console.log(`✓  Built ${file}`);

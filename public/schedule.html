@@ -6,10 +6,13 @@
   <title>D20 Fundraiser — Schedule</title>
   <style>
     @font-face {
-      font-family: 'Aeromove';
-      src: url('__AEROMOVE_FONT__') format('truetype');
+      font-family: 'Draco';
+      src: url('__DRACO_FONT__') format('opentype');
       font-weight: normal;
       font-style: normal;
+      /* Draco renders much larger than the old Aeromove at the same font-size,
+         so scale it down globally. Tweak this one number to taste. */
+      size-adjust: 68%;
     }
 
     :root {
@@ -56,7 +59,7 @@
     }
 
     .header-title {
-      font-family: 'Aeromove', 'Segoe UI', sans-serif;
+      font-family: 'Draco', 'Segoe UI', sans-serif;
       font-size: 4.2rem;
       line-height: 80px;
       color: var(--blue);
