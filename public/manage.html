@@ -482,12 +482,13 @@
   function setAmt(v) { document.getElementById('donAmount').value = v; }
 
   // ── Donation history ───────────────────────────────────────────────────────
-  async function loadDonations() {
+  let _donHTML = '';
+  async function loadDonations(silent = false) {
     try {
       const data = await sb('donations?order=created_at.desc&limit=50');
-      const list = document.getElementById('donationList');
-      if (!data.length) { list.innerHTML = '<div class="empty-state">No donations yet</div>'; return; }
-      list.innerHTML = data.map(d => `
+      const html = !data.length
+        ? '<div class="empty-state">No donations yet</div>'
+        : data.map(d => `
         <div class="donation-row">
           <div class="d-top">
             <div class="d-team">${esc(d.team_name)}</div>
@@ -498,13 +499,49 @@
           </div>
           ${d.description ? `<div class="d-desc">${esc(d.description)}</div>` : ''}
         </div>`).join('');
-    } catch(e) { toast(e.message, true); }
+      // Only touch the DOM when the content actually changed — keeps the list
+      // from flickering/resetting scroll on every background refresh.
+      if (html !== _donHTML) {
+        document.getElementById('donationList').innerHTML = html;
+        _donHTML = html;
+      }
+    } catch(e) { if (!silent) toast(e.message, true); }
+  }
+
+  // Background refresh so this page reflects donations/undos made by other
+  // people in real time, without wiping any unsaved local team edits.
+  async function refreshLive() {
+    if (document.hidden) return;
+    await loadDonations(true);
+    try {
+      const rows = await sb('teams?order=name.asc');
+      let changed = false;
+      rows.forEach(r => {
+        const t = teams.find(x => x.id === r.id);
+        if (t) {
+          if (Number(t.total || 0) !== Number(r.total || 0) || (t.show !== false) !== (r.show !== false)) {
+            t.total = Number(r.total || 0); t.show = r.show !== false; changed = true;
+          }
+        } else {
+          teams.push({ id: r.id, name: r.name, total: r.total || 0, show: r.show !== false });
+          changed = true;
+        }
+      });
+      if (changed) { saveLocal(); updateGrandTotal(); populateSelect(); renderTeams(); }
+    } catch (_) { /* transient network errors are ignored during background refresh */ }
   }
 
   async function deleteDonation(donId, teamId, amount) {
     if (!confirm('Remove this donation and subtract from the team total?')) return;
     try {
-      await sb(`donations?id=eq.${donId}`, { method: 'DELETE' });
+      // DELETE returns the rows it actually removed (Prefer: return=representation).
+      // If empty, someone else already undid this one — don't double-handle it.
+      const deleted = await sb(`donations?id=eq.${donId}`, { method: 'DELETE' });
+      if (!deleted || !deleted.length) {
+        await loadDonations();
+        toast('Already removed', true);
+        return;
+      }
       const team = teams.find(t => t.id == teamId);
       if (team) {
         // total is maintained by the DB trigger — re-read the authoritative value
@@ -690,6 +727,7 @@ update teams t set total = coalesce((
 
   renderTeams();
   loadTeams().then(() => loadDonations()).catch(() => loadDonations());
+  setInterval(refreshLive, 7000);   // keep recent donations & totals current across concurrent users
 
   // ── PIN Gate ───────────────────────────────────────────────────────────────
   (function() {
