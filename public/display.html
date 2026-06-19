@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Donation Display</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
   <style>
         @font-face {
       font-family: 'Aeromove';
@@ -179,29 +178,24 @@
       flex-shrink: 0;
     }
 
-    /* ── Thank-you overlay ── */
-    #thankYou {
-      position: fixed; inset: 0;
-      background: #07070de0;
-      backdrop-filter: blur(12px);
-      z-index: 300;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.35s;
-    }
-    #thankYou.show { opacity: 1; pointer-events: all; }
-
-    #tyCard {
-      background: #10101e;
+    /* ── Thank-you banner ── */
+    #donBanner {
+      position: fixed;
+      top: 0; left: 50%;
+      transform: translateX(-50%) translateY(calc(-100% - 10px));
+      background: #0d0d1e;
       border: 1px solid #2a2a4a;
-      border-radius: 28px;
-      padding: 64px 88px;
-      text-align: center;
-      max-width: 720px; width: 90%;
-      transform: scale(0.88);
+      border-bottom: 3px solid var(--green);
+      border-radius: 0 0 20px 20px;
+      padding: 20px 56px;
+      z-index: 300;
       transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+      text-align: center;
+      min-width: 420px;
     }
-    #thankYou.show #tyCard { transform: scale(1); }
+    #donBanner.show { transform: translateX(-50%) translateY(0); }
+    #donBanner .b-name   { font-family:'Aeromove','Segoe UI',sans-serif; font-size:2.2rem; color:#29b8e8; margin-bottom:4px; }
+    #donBanner .b-amount { font-size:1.4rem; font-weight:700; color:var(--green); letter-spacing:0.5px; }
 
 
     /* ── Live badge ── */
@@ -331,16 +325,9 @@
 
 <div id="liveBadge"><span class="live-dot"></span><span id="liveLabel">LIVE</span></div>
 
-<!-- Thank-you overlay -->
-<div id="thankYou">
-  <div id="tyCard">
-    <div style="font-size:5.5rem; margin-bottom:24px;">🎉</div>
-    <div id="tyName"   style="font-family:'Aeromove','Segoe UI',sans-serif; color:#29b8e8; font-size:3.2rem; font-weight:800; margin-bottom:12px;"></div>
-    <div id="tyTeam"   style="font-family:'Aeromove','Segoe UI',sans-serif; color:#f7c26a; font-size:2.6rem; font-weight:700; margin-bottom:16px;"></div>
-    <div id="tyAmount" style="color:#34d399; font-size:5rem; font-weight:800; letter-spacing:-1px;"></div>
-    <div id="tyDesc"   style="color:#5a5a7a; font-size:1.3rem; margin-top:16px; font-style:italic;"></div>
-    <div style="color:#4a4a6a; font-size:1.1rem; margin-top:12px;">Your generosity makes a difference.</div>
-  </div>
+<div id="donBanner">
+  <div class="b-name"   id="bName"></div>
+  <div class="b-amount" id="bAmount"></div>
 </div>
 
 <script>
@@ -371,8 +358,7 @@
   }
 
   function sorted() {
-    const hidden = JSON.parse(localStorage.getItem('dm_team_visibility') || '{}');
-    return [...teams].filter(t => hidden[t.name] !== false).sort((a,b) => b.total - a.total);
+    return [...teams].filter(t => t.show !== false).sort((a,b) => b.total - a.total);
   }
 
   // ── Grand total ────────────────────────────────────────────────────────────
@@ -441,8 +427,10 @@
   function updateChart() {
     if (!chart) return;
     const s = sorted();
-    chart.data.labels = s.map(t => t.name);
-    chart.data.datasets[0].data = s.map(t => t.total);
+    chart.data.labels                        = s.map(t => t.name);
+    chart.data.datasets[0].data             = s.map(t => t.total);
+    chart.data.datasets[0].backgroundColor  = s.map((_,i) => PALETTE[i % PALETTE.length] + 'cc');
+    chart.data.datasets[0].borderColor      = s.map((_,i) => PALETTE[i % PALETTE.length]);
     chart.update('active');
   }
 
@@ -478,30 +466,14 @@
     }).join('');
   }
 
-  // ── Thank-you overlay ──────────────────────────────────────────────────────
-  let tyTimer;
-  function showTY(donorName, teamName, amount, description) {
-    document.getElementById('tyName').textContent   = donorName ? `Thank you ${donorName}` : 'Thank you!';
-    document.getElementById('tyTeam').textContent   = teamName;
-    document.getElementById('tyAmount').textContent = '$' + Number(amount).toLocaleString();
-    document.getElementById('tyDesc').textContent   = description || '';
-    document.getElementById('thankYou').classList.add('show');
-    fireConfetti();
-    clearTimeout(tyTimer);
-    tyTimer = setTimeout(dismissTY, 3000);
-  }
-
-  function dismissTY() {
-    document.getElementById('thankYou').classList.remove('show');
-    clearTimeout(tyTimer);
-  }
-
-// ── Confetti ───────────────────────────────────────────────────────────────
-  function fireConfetti() {
-    const c = ['#29b8e8','#f7c26a','#34d399','#f87171','#60a5fa'];
-    confetti({ particleCount: 120, spread: 90, origin: { y: 0.5 }, colors: c });
-    setTimeout(() => confetti({ particleCount: 70, angle: 60,  spread: 65, origin: { x: 0, y: 0.5 }, colors: c }), 200);
-    setTimeout(() => confetti({ particleCount: 70, angle: 120, spread: 65, origin: { x: 1, y: 0.5 }, colors: c }), 360);
+  // ── Thank-you banner ──────────────────────────────────────────────────────
+  let bannerTimer;
+  function showTY(donorName, teamName, amount) {
+    document.getElementById('bName').textContent   = donorName ? `Thank you ${donorName}` : 'Thank you!';
+    document.getElementById('bAmount').textContent = '+$' + Number(amount).toLocaleString();
+    document.getElementById('donBanner').classList.add('show');
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => document.getElementById('donBanner').classList.remove('show'), 3000);
   }
 
   // ── Live badge ────────────────────────────────────────────────────────────
@@ -586,7 +558,12 @@
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   async function init() {
-    teams = await sb('teams?order=total.desc');
+    const [teamData, seedDonation] = await Promise.all([
+      sb('teams?order=total.desc'),
+      sb('donations?order=created_at.desc&limit=1&select=id'),
+    ]);
+    teams = teamData;
+    if (seedDonation && seedDonation[0]) lastDonationId = seedDonation[0].id;
     _lastFetch = Date.now();
     buildChart(); renderRanking(); updateTotal();
     subscribeRealtime(); startPolling();

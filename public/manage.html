@@ -125,24 +125,6 @@
     }
     .kw { color: #7c6af7; } .ty { color: #f59e0b; } .vl { color: #34d399; }
 
-    /* ── Thank-you overlay ── */
-    #thankYou {
-      position: fixed; inset: 0;
-      background: #07070dcc;
-      backdrop-filter: blur(10px);
-      z-index: 300;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.3s;
-    }
-    #thankYou.show { opacity: 1; pointer-events: all; }
-    #tyCard {
-      background: #10101a; border: 1px solid #2a2a3e; border-radius: 20px;
-      padding: 48px 56px; text-align: center; max-width: 400px; width: 90%;
-      transform: scale(0.88);
-      transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    #thankYou.show #tyCard { transform: scale(1); }
 
     .toast {
       position: fixed; bottom: 24px; right: 24px;
@@ -324,7 +306,8 @@
     <div class="sql-panel"><span class="kw">create table</span> teams (
   id     <span class="ty">serial primary key</span>,
   name   <span class="ty">text unique not null</span>,
-  total  <span class="ty">numeric</span> <span class="kw">default</span> <span class="vl">0</span>
+  total  <span class="ty">numeric</span>  <span class="kw">default</span> <span class="vl">0</span>,
+  show   <span class="ty">boolean</span>  <span class="kw">default</span> <span class="vl">true</span>
 );
 
 <span class="kw">create table</span> donations (
@@ -347,30 +330,19 @@
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copySQL()">Copy SQL</button>
   </div>
   <div class="card">
+    <div class="card-title">Already have a database? Run this migration</div>
+    <p style="font-size:0.825rem; color:#555; margin-bottom:12px;">Adds the <code style="color:#7c6af7;font-size:0.8rem;">show</code> column to an existing teams table</p>
+    <div class="sql-panel"><span class="kw">alter table</span> teams
+  <span class="kw">add column if not exists</span> show <span class="ty">boolean</span> <span class="kw">default</span> <span class="vl">true</span>;</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copyMigrationSQL()">Copy migration SQL</button>
+  </div>
+  <div class="card">
     <div class="card-title">Connected to</div>
     <p style="font-size:0.875rem; color:#7c6af7; word-break:break-all;">__SUPABASE_URL__</p>
   </div>
 </div>
 
-<!-- ── Thank-you overlay ── -->
-<div id="thankYou">
-  <div id="tyCard">
-    <div style="font-size:3rem; margin-bottom:14px;">🎉</div>
-    <h2 style="font-size:1.6rem; font-weight:800; margin-bottom:10px;">Thank you!</h2>
-    <div id="tyName"   style="color:#7c6af7; font-size:1rem; font-weight:600; margin-bottom:4px;"></div>
-    <div id="tyTeam"   style="color:#f7c26a; font-size:1.05rem; font-weight:700; margin-bottom:6px;"></div>
-    <div id="tyAmount" style="color:#34d399; font-size:2rem; font-weight:800; letter-spacing:-1px;"></div>
-    <div id="tyDesc"   style="color:#4a4a5a; font-size:0.85rem; margin-top:8px; font-style:italic;"></div>
-    <div style="color:#4a4a5a; font-size:0.82rem; margin-top:6px;">Your generosity makes a difference.</div>
-    <button onclick="dismissTY()" style="
-      margin-top:24px; background:#7c6af7; border:none; border-radius:10px;
-      color:#fff; cursor:pointer; font-size:0.9rem; font-weight:700; padding:12px 36px;">Done</button>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <script>
   const SB_URL = '__SUPABASE_URL__';
   const SB_KEY = '__SUPABASE_KEY__';
@@ -455,8 +427,7 @@
       });
       team.total = newTotal;
       saveLocal(); updateGrandTotal(); populateSelect(); renderTeams(); loadDonations();
-      showTY(donorName, team.name, amount, description);
-      fireConfetti();
+      toast(`Donation recorded — ${team.name}`);
       document.getElementById('donAmount').value      = '';
       document.getElementById('donorName').value      = '';
       document.getElementById('donDescription').value = '';
@@ -544,7 +515,7 @@
   async function loadTeams() {
     try {
       const data = await sb('teams?order=name.asc');
-      teams = data.map(r => ({ id: r.id, name: r.name, total: r.total || 0 }));
+      teams = data.map(r => ({ id: r.id, name: r.name, total: r.total || 0, show: r.show !== false }));
       saveLocal(); renderTeams(); populateSelect(); updateGrandTotal();
       toast(`Loaded ${teams.length} teams`);
     } catch(e) { toast(e.message, true); }
@@ -558,7 +529,7 @@
       await sb('teams?on_conflict=name', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(teams.map(t => ({ name: t.name, total: t.total || 0 }))),
+        body: JSON.stringify(teams.map(t => ({ name: t.name, total: t.total || 0, show: t.show !== false }))),
       });
       await loadTeams();
       toast(`${teams.length} teams pushed`);
@@ -566,12 +537,20 @@
     btn.disabled = false; btn.textContent = 'Push to Supabase';
   }
 
-  function getVisibility() { return JSON.parse(localStorage.getItem('dm_team_visibility') || '{}'); }
-  function toggleVisible(name, show) {
-    const vis = getVisibility();
-    if (show) { delete vis[name]; } else { vis[name] = false; }
-    localStorage.setItem('dm_team_visibility', JSON.stringify(vis));
-    renderTeams();
+  async function toggleVisible(id, show) {
+    const team = teams.find(t => t.id === id);
+    if (!team) return;
+    team.show = show;
+    saveLocal(); renderTeams();
+    try {
+      await sb(`teams?id=eq.${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ show }),
+      });
+    } catch(e) {
+      team.show = !show; saveLocal(); renderTeams();
+      toast('Could not save — check connection', true);
+    }
   }
 
   function renderTeams() {
@@ -579,47 +558,22 @@
     updateGrandTotal(); populateSelect();
     const list = document.getElementById('teamList');
     if (!teams.length) { list.innerHTML = '<div class="empty-state">No teams yet</div>'; return; }
-    const vis = getVisibility();
     const s = [...teams].sort((a,b) => b.total - a.total);
     list.innerHTML = s.map((t,i) => {
-      const on = vis[t.name] !== false;
+      const on    = t.show !== false;
+      const hasId = !!t.id;
       return `
       <div class="team-row">
         <span class="team-rank">${i+1}</span>
         <span class="team-name">${esc(t.name)}</span>
         ${t.total ? `<span class="team-total">$${Number(t.total).toLocaleString()}</span>` : ''}
-        <label class="vis-toggle ${on ? 'on' : ''}" title="${on ? 'Shown on graph & ranking' : 'Hidden from graph & ranking'}">
-          <input type="checkbox" ${on ? 'checked' : ''} data-name="${esc(t.name)}" onchange="toggleVisible(this.dataset.name, this.checked)">
+        <label class="vis-toggle ${on ? 'on' : ''}" title="${hasId ? (on ? 'Shown on graph & ranking' : 'Hidden from graph & ranking') : 'Push to Supabase first'}">
+          <input type="checkbox" ${on ? 'checked' : ''} ${hasId ? '' : 'disabled'} onchange="toggleVisible(${t.id || 'null'}, this.checked)">
           <span>${on ? 'Show' : 'Hide'}</span>
         </label>
         <button class="btn-danger" onclick="removeTeam(${teams.indexOf(t)})">Remove</button>
       </div>`;
     }).join('');
-  }
-
-  // ── Thank-you ──────────────────────────────────────────────────────────────
-  let tyTimer;
-  function showTY(donorName, teamName, amount, description) {
-    document.getElementById('tyName').textContent   = donorName ? `Thank you ${donorName}` : '';
-    document.getElementById('tyTeam').textContent   = teamName;
-    document.getElementById('tyAmount').textContent = '$' + Number(amount).toLocaleString();
-    document.getElementById('tyDesc').textContent   = description || '';
-    document.getElementById('thankYou').classList.add('show');
-    clearTimeout(tyTimer);
-    tyTimer = setTimeout(dismissTY, 6000);
-  }
-
-  function dismissTY() {
-    document.getElementById('thankYou').classList.remove('show');
-    clearTimeout(tyTimer);
-  }
-
-  // ── Confetti ───────────────────────────────────────────────────────────────
-  function fireConfetti() {
-    const c = ['#7c6af7','#f7c26a','#34d399','#f87171','#60a5fa'];
-    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors: c });
-    setTimeout(() => confetti({ particleCount: 50, angle: 60,  spread: 55, origin: { x: 0, y: 0.6 }, colors: c }), 180);
-    setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1, y: 0.6 }, colors: c }), 320);
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────────
@@ -637,7 +591,8 @@
     navigator.clipboard.writeText(`create table teams (
   id     serial primary key,
   name   text unique not null,
-  total  numeric default 0
+  total  numeric  default 0,
+  show   boolean  default true
 );
 create table donations (
   id          serial primary key,
@@ -656,9 +611,14 @@ create policy "public read donations"  on donations for select using (true);
 create policy "public write donations" on donations for all    using (true);`).then(() => toast('SQL copied'));
   }
 
+  function copyMigrationSQL() {
+    navigator.clipboard.writeText(
+      `alter table teams\n  add column if not exists show boolean default true;`
+    ).then(() => toast('Migration SQL copied'));
+  }
+
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') dismissTY(); });
 
   renderTeams();
   loadTeams().then(() => loadDonations()).catch(() => loadDonations());
