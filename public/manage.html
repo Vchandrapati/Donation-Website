@@ -326,7 +326,23 @@
 <span class="kw">create policy</span> <span class="vl">"public read teams"</span>      <span class="kw">on</span> teams     <span class="kw">for select using</span> (<span class="vl">true</span>);
 <span class="kw">create policy</span> <span class="vl">"public write teams"</span>     <span class="kw">on</span> teams     <span class="kw">for all    using</span> (<span class="vl">true</span>);
 <span class="kw">create policy</span> <span class="vl">"public read donations"</span>  <span class="kw">on</span> donations <span class="kw">for select using</span> (<span class="vl">true</span>);
-<span class="kw">create policy</span> <span class="vl">"public write donations"</span> <span class="kw">on</span> donations <span class="kw">for all    using</span> (<span class="vl">true</span>);</div>
+<span class="kw">create policy</span> <span class="vl">"public write donations"</span> <span class="kw">on</span> donations <span class="kw">for all    using</span> (<span class="vl">true</span>);
+
+<span class="cm" style="color:#444;">-- Keep teams.total correct & concurrency-safe (the app never writes it directly)</span>
+<span class="kw">create or replace function</span> apply_donation_to_team() <span class="kw">returns trigger language</span> plpgsql <span class="kw">as</span> $$
+<span class="kw">begin</span>
+  <span class="kw">if</span> (tg_op = <span class="vl">'INSERT'</span>) <span class="kw">then</span>
+    <span class="kw">update</span> teams <span class="kw">set</span> total = <span class="ty">coalesce</span>(total,<span class="vl">0</span>) + <span class="ty">new</span>.amount <span class="kw">where</span> id = <span class="ty">new</span>.team_id;
+  <span class="kw">elsif</span> (tg_op = <span class="vl">'DELETE'</span>) <span class="kw">then</span>
+    <span class="kw">update</span> teams <span class="kw">set</span> total = <span class="ty">greatest</span>(<span class="vl">0</span>, <span class="ty">coalesce</span>(total,<span class="vl">0</span>) - <span class="ty">old</span>.amount) <span class="kw">where</span> id = <span class="ty">old</span>.team_id;
+  <span class="kw">end if</span>;
+  <span class="kw">return null</span>;
+<span class="kw">end</span>; $$;
+
+<span class="kw">create trigger</span> trg_donation_insert <span class="kw">after insert on</span> donations
+  <span class="kw">for each row execute function</span> apply_donation_to_team();
+<span class="kw">create trigger</span> trg_donation_delete <span class="kw">after delete on</span> donations
+  <span class="kw">for each row execute function</span> apply_donation_to_team();</div>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copySQL()">Copy SQL</button>
   </div>
   <div class="card">
@@ -335,6 +351,31 @@
     <div class="sql-panel"><span class="kw">alter table</span> teams
   <span class="kw">add column if not exists</span> show <span class="ty">boolean</span> <span class="kw">default</span> <span class="vl">true</span>;</div>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copyMigrationSQL()">Copy migration SQL</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Make totals concurrency-safe — run once</div>
+    <p style="font-size:0.825rem; color:#555; margin-bottom:12px;">Adds the trigger that keeps <code style="color:#7c6af7;font-size:0.8rem;">teams.total</code> correct when several people record donations at once, then recomputes existing totals from the donation rows to fix any past drift.</p>
+    <div class="sql-panel"><span class="kw">create or replace function</span> apply_donation_to_team() <span class="kw">returns trigger language</span> plpgsql <span class="kw">as</span> $$
+<span class="kw">begin</span>
+  <span class="kw">if</span> (tg_op = <span class="vl">'INSERT'</span>) <span class="kw">then</span>
+    <span class="kw">update</span> teams <span class="kw">set</span> total = <span class="ty">coalesce</span>(total,<span class="vl">0</span>) + <span class="ty">new</span>.amount <span class="kw">where</span> id = <span class="ty">new</span>.team_id;
+  <span class="kw">elsif</span> (tg_op = <span class="vl">'DELETE'</span>) <span class="kw">then</span>
+    <span class="kw">update</span> teams <span class="kw">set</span> total = <span class="ty">greatest</span>(<span class="vl">0</span>, <span class="ty">coalesce</span>(total,<span class="vl">0</span>) - <span class="ty">old</span>.amount) <span class="kw">where</span> id = <span class="ty">old</span>.team_id;
+  <span class="kw">end if</span>;
+  <span class="kw">return null</span>;
+<span class="kw">end</span>; $$;
+
+<span class="kw">drop trigger if exists</span> trg_donation_insert <span class="kw">on</span> donations;
+<span class="kw">create trigger</span> trg_donation_insert <span class="kw">after insert on</span> donations
+  <span class="kw">for each row execute function</span> apply_donation_to_team();
+<span class="kw">drop trigger if exists</span> trg_donation_delete <span class="kw">on</span> donations;
+<span class="kw">create trigger</span> trg_donation_delete <span class="kw">after delete on</span> donations
+  <span class="kw">for each row execute function</span> apply_donation_to_team();
+
+<span class="cm" style="color:#444;">-- recompute existing totals from the donation rows</span>
+<span class="kw">update</span> teams t <span class="kw">set</span> total = <span class="ty">coalesce</span>((
+  <span class="kw">select sum</span>(d.amount) <span class="kw">from</span> donations d <span class="kw">where</span> d.team_id = t.id), <span class="vl">0</span>);</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="copyTriggerSQL()">Copy trigger SQL</button>
   </div>
   <div class="card">
     <div class="card-title">Connected to</div>
@@ -420,12 +461,13 @@
           amount,
         }),
       });
-      const newTotal = Number(team.total || 0) + amount;
-      await sb(`teams?id=eq.${teamId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ total: newTotal }),
-      });
-      team.total = newTotal;
+      // teams.total is maintained atomically by a DB trigger (concurrency-safe) —
+      // re-read the authoritative value so this view also reflects any donations
+      // other people recorded at the same time.
+      try {
+        const [row] = await sb(`teams?id=eq.${teamId}&select=total`);
+        team.total = row ? Number(row.total || 0) : Number(team.total || 0) + amount;
+      } catch (_) { team.total = Number(team.total || 0) + amount; }
       saveLocal(); updateGrandTotal(); populateSelect(); renderTeams(); loadDonations();
       toast(`Donation recorded — ${team.name}`);
       document.getElementById('donAmount').value      = '';
@@ -465,12 +507,11 @@
       await sb(`donations?id=eq.${donId}`, { method: 'DELETE' });
       const team = teams.find(t => t.id == teamId);
       if (team) {
-        const newTotal = Math.max(0, Number(team.total || 0) - Number(amount));
-        await sb(`teams?id=eq.${teamId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ total: newTotal }),
-        });
-        team.total = newTotal;
+        // total is maintained by the DB trigger — re-read the authoritative value
+        try {
+          const [row] = await sb(`teams?id=eq.${teamId}&select=total`);
+          team.total = row ? Number(row.total || 0) : Math.max(0, Number(team.total || 0) - Number(amount));
+        } catch (_) { team.total = Math.max(0, Number(team.total || 0) - Number(amount)); }
         saveLocal(); updateGrandTotal(); populateSelect(); renderTeams();
       }
       await loadDonations();
@@ -608,13 +649,40 @@ alter table donations enable row level security;
 create policy "public read teams"      on teams     for select using (true);
 create policy "public write teams"     on teams     for all    using (true);
 create policy "public read donations"  on donations for select using (true);
-create policy "public write donations" on donations for all    using (true);`).then(() => toast('SQL copied'));
+create policy "public write donations" on donations for all    using (true);
+
+` + TRIGGER_SQL).then(() => toast('SQL copied'));
   }
 
   function copyMigrationSQL() {
     navigator.clipboard.writeText(
       `alter table teams\n  add column if not exists show boolean default true;`
     ).then(() => toast('Migration SQL copied'));
+  }
+
+  const TRIGGER_SQL = `create or replace function apply_donation_to_team() returns trigger language plpgsql as $$
+begin
+  if (tg_op = 'INSERT') then
+    update teams set total = coalesce(total,0) + new.amount where id = new.team_id;
+  elsif (tg_op = 'DELETE') then
+    update teams set total = greatest(0, coalesce(total,0) - old.amount) where id = old.team_id;
+  end if;
+  return null;
+end; $$;
+
+drop trigger if exists trg_donation_insert on donations;
+create trigger trg_donation_insert after insert on donations
+  for each row execute function apply_donation_to_team();
+drop trigger if exists trg_donation_delete on donations;
+create trigger trg_donation_delete after delete on donations
+  for each row execute function apply_donation_to_team();
+
+-- recompute existing totals from the donation rows
+update teams t set total = coalesce((
+  select sum(d.amount) from donations d where d.team_id = t.id), 0);`;
+
+  function copyTriggerSQL() {
+    navigator.clipboard.writeText(TRIGGER_SQL).then(() => toast('Trigger SQL copied'));
   }
 
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
